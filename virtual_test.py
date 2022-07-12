@@ -2,10 +2,11 @@ import numpy as np
 import pandas as pd
 from math import pi, sin, cos
 from tqdm import tqdm
-from structural_triangulation import create_human_tree, optim_estimate
+from structural_triangulation import create_human_tree, Pose3D_inference
 from utils import linear_eigen_method
+from config import h36m_config
 
-ORDER = [6] + list(range(1, 6)) + [0] + list(range(7, 17))
+ORDER = h36m_config["order"]
 def main():
     test_subjects = [9, 11]
     n_cams_list = np.arange(2, 11)
@@ -16,7 +17,7 @@ def main():
     tri_X = np.zeros((1253 + 928, 17, 3))
     optim_X = np.zeros((1253 + 928, 17, 3))
     lengths = {}
-    labels_path="human36m-multiview-labels-GTbboxes.npy"
+    labels_path=h36m_config["label path"]
     labels = np.load(labels_path, allow_pickle=True).item()
     human_tree = create_human_tree()
     poses3D = []
@@ -44,7 +45,7 @@ def main():
                 for i in range(Nf):
                     for j in range(17):
                         tri_X[i, j, :] = linear_eigen_method(n_cams, estim2D[i, :, j, :], np.stack(tuple(P_list), axis=0), np.ones((n_cams,))/2).reshape(3,)
-                    optim_X[i, ...] = optim_estimate(n_cams, human_tree, estim2D[i, ...], np.ones((n_cams, Nj))/n_cams, lengths[9 if i < 1253 else 11], np.stack(tuple(P_list), axis=0), "closed", 1 if (n_cams==2 and cam_type=="round") else 3)
+                    optim_X[i, ...] = Pose3D_inference(n_cams, human_tree, estim2D[i, ...], np.ones((n_cams, Nj))/n_cams, lengths[9 if i < 1253 else 11], np.stack(tuple(P_list), axis=0), "closed", 1 if (n_cams==2 and cam_type=="round") else 3)
                 print(MPJPE(tri_X, poses3D))
                 print(MPJPE(optim_X, poses3D))
                 
@@ -52,9 +53,9 @@ def main():
                 opt_result[n_cams][sigma] = MPJPE(optim_X, poses3D)
                 outperform_rate[n_cams][sigma] = OUT_rate(tri_X, optim_X, poses3D)
 
-        tri_result.to_csv(f"simu_result/addition/{cam_type}_triangulation.csv", ",")
-        opt_result.to_csv(f"simu_result/addition/{cam_type}_optimization.csv", ",")
-        outperform_rate.to_csv(f"simu_result/addition/{cam_type}_outperform_rate.csv", ",")
+        tri_result.to_csv(f"vir_result/{cam_type}_triangulation.csv", ",")
+        opt_result.to_csv(f"vir_result/{cam_type}_optimization.csv", ",")
+        outperform_rate.to_csv(f"vir_result/{cam_type}_outperform_rate.csv", ",")
 
 def MPJPE(pose, gt):
     """

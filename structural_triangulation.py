@@ -167,7 +167,7 @@ def get_inner_mat(u, v):
     return np.array([[1, 0, -u], [0, 1, -v], [-u, -v, u**2+v**2]])
 
 
-def ST_estimate(n_cams, human_tree, poses_2d, confidences, lengths, Projections,
+def Pose3D_inference(n_cams, human_tree, poses_2d, confidences, lengths, Projections,
         method, n_step):
     """
     The main procedure of structural triangulation & step contraint algorithm
@@ -227,7 +227,7 @@ def ST_estimate(n_cams, human_tree, poses_2d, confidences, lengths, Projections,
     if method == "lag":
         b = Lagrangian_method(A, beta, b0, n_step, Nj, lengths, D31)
     elif method == "st":
-        b = step_constrain(A_inv, beta, Nj, b0, lengths, D31, n_step)
+        b = ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step)
     else:
         error("Method %s not completed yet." % (method))
         exit(-1)
@@ -260,7 +260,7 @@ def Lagrangian_method(A, e, b0, n_iter, Nj, lengths, D31):
 
 
 
-def step_constrain(A_inv, beta, Nj, b0, lengths, D31, n_step):
+def ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step):
     """
     step contrain algorithm. Disabled when n_step == 1
     """
