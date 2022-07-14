@@ -1,7 +1,7 @@
 """
 The configuration file. You can config the file paths.
 """
-h36m_config = {
+config = {
     # pickle file given by 2D backbones, including the following contents:
     # keypoints_2d: a list of numpy.ndarray of size batch_size x n_cameras x n_joints x 2. The 2D keypoint estimations.
     # keypoints_3d_gt: a list of numpy.ndarray of size batch_size x n_joints x 3. The 3D ground truth.
@@ -19,22 +19,13 @@ h36m_config = {
     # The bone lengths of test subjects.
     "S9 bone lengths path": "../bone_lengths/h36m/S9_bl_gt.npy",
     "S11 bone lengths path": "../bone_lengths/h36m/S11_bl_gt.npy",
+
+    # The joint number
+    "joint number": 17,
     
     # The correspondence between indices of joints in our test and that of MPII model.
     "order": [6] + list(range(1, 6)) + [0] + list(range(7, 17)),
     "actions": ['Directions', 'Discussion', 'Eating', 'Greeting', 'Phoning',
                 'Posing', 'Purchases', 'Sitting', 'SittingDown', 'Smoking',
                 'TakingPhoto', 'Waiting', 'Walking', 'WalkingDog', 'WalkingTogether']
-}
-
-ttc_config = {
-    "output file path": "detected_data/ttc.pkl",
-    "label path": "totalcapture-multiview-labels-GTbboxes.npy",
-    "S1 bone lengths path": "bone_lengths/S1/bl_gt.npy",
-    "S2 bone lengths path": "bone_lengths/S2/bl_gt.npy",
-    "S3 bone lengths path": "bone_lengths/S3/bl_gt.npy",
-    "S4 bone lengths path": "bone_lengths/S4/bl_gt.npy",
-    "S5 bone lengths path": "bone_lengths/S5/bl_gt.npy",
-    "order": [6] + list(range(1, 6)) + [0] + list(range(7, 16)),
-    "actions": ["Walking", "Freestyle", "Acting"]
 }

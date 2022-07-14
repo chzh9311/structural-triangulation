@@ -45,7 +45,7 @@ def main():
                 for i in range(Nf):
                     for j in range(17):
                         tri_X[i, j, :] = linear_eigen_method(n_cams, estim2D[i, :, j, :], np.stack(tuple(P_list), axis=0), np.ones((n_cams,))/2).reshape(3,)
-                    optim_X[i, ...] = Pose3D_inference(n_cams, human_tree, estim2D[i, ...], np.ones((n_cams, Nj))/n_cams, lengths[9 if i < 1253 else 11], np.stack(tuple(P_list), axis=0), "closed", 1 if (n_cams==2 and cam_type=="round") else 3)
+                    optim_X[i, ...] = Pose3D_inference(n_cams, human_tree, estim2D[i, ...], np.ones((n_cams, Nj))/n_cams, lengths[9 if i < 1253 else 11], np.stack(tuple(P_list), axis=0), "st", 1 if (n_cams==2 and cam_type=="round") else 3)
                 print(MPJPE(tri_X, poses3D))
                 print(MPJPE(optim_X, poses3D))
                 

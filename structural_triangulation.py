@@ -262,7 +262,8 @@ def Lagrangian_method(A, e, b0, n_iter, Nj, lengths, D31):
 
 def ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step):
     """
-    step contrain algorithm. Disabled when n_step == 1
+    Structural Triangulation with step contrain algorithm. When n_step == 1,
+    this is pure ST without SCA.
     """
     b = b0
     Inv = A_inv

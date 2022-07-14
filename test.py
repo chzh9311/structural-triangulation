@@ -5,26 +5,28 @@ import numpy as np
 import pickle
 import argparse
 from tqdm import tqdm
-from config import h36m_config
+from config import config
 
 from utils import linear_eigen_method_pose, batch_data_iterator
 from structural_triangulation import Pose3D_inference, create_human_tree
 from bl_estimate import bone_length_esti_batch
 
-ORDER = h36m_config["order"]
-ACTIONS = h36m_config["actions"]
 
 def test():
-    bl_S9 = np.load(h36m_config["S9 bone lengths path"])
-    bl_S11 = np.load(h36m_config["S11 bone lengths path"])
-    pkl_file = open(h36m_config["output file path"], 'rb')
+# H36M
+    ORDER = config["order"]
+    ACTIONS = config["actions"]
+    bl_S9 = np.load(config["S9 bone lengths path"])
+    bl_S11 = np.load(config["S11 bone lengths path"])
+    pkl_file = open(config["output file path"], 'rb')
     data = pickle.load(pkl_file)
-    # list of batch_size x n_cam x 17 x 2, length is n_frame
+    n_joints = config["joint number"]
+    # list of batch_size x n_cam x n_joints x 2, length is n_frame
     keypoints_2d = data["keypoints_2d"]
     subject_idx = data["subject_idx"]
     # list of batch_size x n_cam x 3 x 4, len = n_frame
     Ps = data["Projections"]
-    # list of batch_size x n_cam x 17, len = n_frame
+    # list of batch_size x n_cam x n_joints, len = n_frame
     confidences = data["confidences"]
     n_batches = len(keypoints_2d)
     batch_size = keypoints_2d[0].shape[0]
@@ -34,8 +36,8 @@ def test():
     gt_relative = gt - gt[:, 0:1, :]
 
     # Initialization
-    linear_X = np.zeros((n_frames, 17, 3))
-    ST_X = np.zeros((n_frames, 17, 3))
+    linear_X = np.zeros((n_frames, n_joints, 3))
+    ST_X = np.zeros((n_frames, n_joints, 3))
     start = time.time()
 
     ## Test for segment triangulation
@@ -104,20 +106,19 @@ def test():
         """)
 
 
-
 def get_bl():
-    path = h36m_config["output path"]
-    for sub_idx in [5, 6]:
+    path = config["output path"]
+    for sub_idx in config["subject ids"]:
         pkl_file = open(path, 'rb')
         data = pickle.load(pkl_file)
-        keypoints_2d = data["keypoints_2d"] # list of batch_size x n_cam x 17 x 2, length is n_frame
+        keypoints_2d = data["keypoints_2d"] # list of batch_size x n_cam x n_joints x 2, length is n_frame
         Ps = data["Projections"] # list of batch_size x n_cam x 3 x 4, len = n_frame
-        confidences = data["confidences"] # list of batch_size x n_cam x 17, len = n_frame
+        confidences = data["confidences"] # list of batch_size x n_cam x n_joints, len = n_frame
         human_tree = create_human_tree("human36m")
 
         action_idx = data['action_idx'].flatten()
         Tposes = [i for i in range(0, len(action_idx)) if (i == 0 or action_idx[i] != action_idx[i-1]) and (action_idx[i] % 2 == 1) and (data["subject_idx"][i] == sub_idx)]
-        bl_mean = bone_length_esti_batch(keypoints_2d, confidences, human_tree, Ps, ORDER, Tposes)
+        bl_mean = bone_length_esti_batch(keypoints_2d, confidences, human_tree, Ps, config["order"], Tposes)
         # np.save(f"bone_lengths/h36m/S{9 if sub_idx == 5 else 11}_bl_mean_w_conf.npy", bl_mean)
 
 
