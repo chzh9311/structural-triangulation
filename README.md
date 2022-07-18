@@ -42,7 +42,7 @@ pip install -r requirements.txt
 
 `Pose3D_inference(...)` in `structural_triangulation.py` is the key function which implements the main method in our work. This function takes one frame of 2D poses, along with camera matrices, bone lengths, etc., as input, and produces the optimal 3D pose of the current frame. Besides the closed-form Structural Triangulation combining with Step Constraint Method, implementation of Lagrangian Algorithm is also provided as a baseline. The methods are selected by a string parameter in `Pose3D_inference(...)`.
 
-Actually, Structural Triangulation is as simple as just a triangulation method, these test files are more likely to be sample code than . You may test this method according to the following instruction, or however you like, as long as proper variables are passed in.
+Actually, Structural Triangulation is as simple as just a triangulation method, these test files are more likely to be sample code than official ones, since it requires 2D estimations to be ready. You may test this method according to the following instruction, or however you like, as long as proper variables are passed in the functions.
 
 For tests on Human3.6M Dataset, 2D estimation part of [this model](https://github.com/karfly/learnable-triangulation-pytorch) is used as the 2D backbone. Just prepare data as [the guide](https://github.com/karfly/learnable-triangulation-pytorch/blob/master/mvn/datasets/human36m_preprocessing/README.md) suggests and dump necessary info (details see comments in config.py) to a pickle file. Edit data path in `config.py` and then run `test()` in `test.py`.
 
