@@ -10,6 +10,7 @@ All source files are listed below:
 root
   |- README.md
   |- requirements.txt
+  |- bl_estimate.py
   |- config.py
   |- structural_triangulation.py
   |- test.py
@@ -19,6 +20,7 @@ root
 
 Functions of the source code are:
 
+* `bl_estimate.py`: The implementation of a simple way to estimate bone lengths with given frame indices: Taking the average over all symmetric bones.
 * `config.py`: The configuration file, including the file paths and dataset info. 
 * `structural_triangulation.py`: The main implementation file of Structural Triangulation. Inside there is a tree structure class (`DictTree`) and an estimation function (`Pose3D_estimate`).
 * `test.py`: The test file for public datasets.
