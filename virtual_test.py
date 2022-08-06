@@ -4,9 +4,9 @@ from math import pi, sin, cos
 from tqdm import tqdm
 from structural_triangulation import create_human_tree, Pose3D_inference
 from utils import linear_eigen_method
-from config import h36m_config
+from config import config
 
-ORDER = h36m_config["order"]
+ORDER = config["order"]
 def main():
     test_subjects = [9, 11]
     n_cams_list = np.arange(2, 11)
@@ -17,7 +17,7 @@ def main():
     tri_X = np.zeros((1253 + 928, 17, 3))
     optim_X = np.zeros((1253 + 928, 17, 3))
     lengths = {}
-    labels_path=h36m_config["label path"]
+    labels_path=config["label path"]
     labels = np.load(labels_path, allow_pickle=True).item()
     human_tree = create_human_tree()
     poses3D = []
