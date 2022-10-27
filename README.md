@@ -1,6 +1,6 @@
 # structural-triangulation
 
-The official implementation of Structural Triangulation method.
+The official implementation of ECCV 2022 paper *Structural Triangulation: A Closed-Form Solution to Constrained 3D Human Pose Estiation*.
 
 ## Files
 
@@ -49,3 +49,14 @@ For tests on Human3.6M Dataset, 2D estimation part of [this model](https://githu
 Tests on other datasets and other 2D backbones are simply done in the same manner. Just prepare necessary data and edit path and settings in `config.py`.
 
 Virtual test needs only the 3D ground truth as 2D estimations are generated. Use ground truth data prepared following this [guide](https://github.com/karfly/learnable-triangulation-pytorch/blob/master/mvn/datasets/human36m_preprocessing/README.md) and run `virtual_test.py` then the result will be output to `vir_result` folder.
+
+## Citation
+If you use our code, please cite with:
+```
+@inproceedings{Chen2022ECCV,
+  title={Structural Triangulation\: A Closed-Form Solution to Constrained 3D Human Pose Estiation},
+  author={Chen, Zhuo and Zhao, Xu and Wan, Xiaoyue},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year={2022}
+}
+```
