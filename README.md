@@ -52,9 +52,10 @@ Virtual test needs only the 3D ground truth as 2D estimations are generated. Use
 
 ## Citation
 If you use our code, please cite with:
-```
+
+```latex
 @inproceedings{Chen2022ECCV,
-  title={Structural Triangulation\: A Closed-Form Solution to Constrained 3D Human Pose Estiation},
+  title={Structural Triangulation: A Closed-Form Solution to Constrained 3D Human Pose Estiation},
   author={Chen, Zhuo and Zhao, Xu and Wan, Xiaoyue},
   booktitle = {European Conference on Computer Vision (ECCV)},
   year={2022}
