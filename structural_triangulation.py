@@ -1,6 +1,6 @@
-from distutils.log import error
 import numpy as np
 from scipy.linalg import block_diag as block_diag
+
 
 class DictTree:
     """

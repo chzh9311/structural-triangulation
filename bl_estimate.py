@@ -1,6 +1,10 @@
+import os
+import pickle
 import numpy as np
 from scipy.linalg import block_diag as block_diag
-from structural_triangulation import get_inner_mat
+
+from structural_triangulation import get_inner_mat, create_human_tree
+from config import get_config
 
 def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, samples=None):
     """
@@ -73,3 +77,21 @@ def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, sample
         pair_idx = human_tree.right_bones[human_tree.left_bones.index(i)]
         L_mean[i-1, 0] = L_mean[pair_idx-1, 0] = (L_mean[i-1, 0] + L_mean[pair_idx-1, 0])/2
     return L_mean
+
+
+def get_bl(output_dir):
+    config = get_config("config.yaml")
+    pkl_file = open(config.output_file_path, 'rb')
+    data = pickle.load(pkl_file)
+    for sub_idx in [5, 6]:
+        keypoints_2d = data["keypoints_2d"] # list of batch_size x n_cam x n_joints x 2, length is n_frame
+        Ps = data["Projections"] # list of batch_size x n_cam x 3 x 4, len = n_frame
+        confidences = data["confidences"] # list of batch_size x n_cam x n_joints, len = n_frame
+        human_tree = create_human_tree("human36m")
+
+        action_idx = data['action_idx'].flatten()
+
+        # T poses are the first frames of each action
+        Tposes = [i for i in range(0, len(action_idx)) if (i == 0 or action_idx[i] != action_idx[i-1]) and (action_idx[i] % 2 == 1) and (data["subject_idx"][i] == sub_idx)]
+        bl_mean = bone_length_esti_batch(keypoints_2d, confidences, human_tree, Ps, config["order"], Tposes)
+        np.save(os.path.join(output_dir, f"S{9 if sub_idx == 5 else 11}_bl_mean_w_conf.npy"), bl_mean)
