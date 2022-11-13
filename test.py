@@ -20,6 +20,14 @@ def test():
     bl_S11 = np.load(config.file_paths.bl_S11).reshape(config.data.n_joints-1, 1)
     with open(config.file_paths.detected_data, 'rb') as pkl_file:
         detected = edict(pickle.load(pkl_file))
+        if not config.test.with_damaged_actions:
+            da_list = []
+            for a in config.test.damaged_actions:
+                action_name, subaction = a.split("_")
+                da_list.append(2 * config.data.actions.index(action_name) + eval(subaction) - 1)
+            mask = np.logical_not(np.isin(detected.action_idx, da_list))
+            for k in detected.keys():
+                detected[k] = detected[k][mask, ...]
 
     n_frames = detected.keypoints_2d.shape[0]
     human_tree = create_human_tree()

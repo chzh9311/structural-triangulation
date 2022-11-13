@@ -10,8 +10,8 @@ file_paths:
   detected_data: data/detected_data.pkl
 
   # The bone lengths of test subjects.
-  bl_S9: bone_lengths/h36m/S9_bl_gt.npy
-  bl_S11: bone_lengths/h36m/S11_bl_gt.npy
+  bl_S9: data/bone_lengths/h36m/S9_bl_gt.npy
+  bl_S11: data/bone_lengths/h36m/S11_bl_gt.npy
 
 data:
   # The joint number
@@ -45,4 +45,8 @@ test:
   # The step number of Step constraint method
   method: ST
   SCA_step: 3
-  with_damaged_actions: True
+  with_damaged_actions: False
+  damaged_actions:
+   - Greeting_2
+   - SittingDown_2
+   - Waiting_1
