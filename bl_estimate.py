@@ -5,15 +5,17 @@ from scipy.linalg import block_diag as block_diag
 
 from structural_triangulation import get_inner_mat, create_human_tree
 from config import get_config
+from easydict import EasyDict as edict
 
-def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, samples=None):
+
+def bone_length_estimate(pts_2d, confs, human_tree, Projections, ORDER, samples=None):
     """
     Estimate the bone lengths by taking average over all symmetric bones
     amoung all frames.
-    pts_2d: list of n_batches x n_cams x N_joints x 2
-    confs:  list of n_batches x n_cams x N_joints
+    pts_2d: n_frames x n_cams x N_joints x 2
+    confs:  n_frames x n_cams x N_joints
     human_tree: <DictTree> object, the tree representing human structure
-    Projections: list of n_batches x n_cams x 3 x 4
+    Projections: n_frames x n_cams x 3 x 4
     ORDER: the index list of all human joints where 0 represents the root.
     samples: the index list of all T-pose frames. If None, take only the first frame.
     """
@@ -33,21 +35,19 @@ def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, sample
 
     L_mean = np.zeros((Nj-1, 1))
     for f in samples:
-        batch_idx = int(f/batch_size)
-        inner_idx = int(f - batch_size * batch_idx)
-        poses_2d = pts_2d[batch_idx][inner_idx, :, :, :][:, ORDER, :]
-        n_cams = pts_2d[batch_idx].shape[1]
+        poses_2d = pts_2d[f, :, :, :][:, ORDER, :]
+        n_cams = poses_2d.shape[0]
         P = np.zeros((Nj * n_cams * 3, Nj * n_cams * 3))
         for i in range(Nj):
             for j in range(n_cams):
                 P[3*(i*n_cams + j):3*(i*n_cams + j)+3, 3*(i*n_cams + j):3*(i*n_cams + j)+3]\
-                    = confs[batch_idx][inner_idx, j, i] * get_inner_mat(poses_2d[j, i, 0], poses_2d[j, i, 1])
+                    = confs[f, j, i] * get_inner_mat(poses_2d[j, i, 0], poses_2d[j, i, 1])
 
         G = human_tree.conv_B2J
 
         tmp = []
         for j in range(n_cams):
-            tmp.append(Projections[batch_idx][inner_idx, j, :, 0:3])
+            tmp.append(Projections[f, j, :, 0:3])
         KR_diag = [np.concatenate(tmp, axis=0)]*Nj
         KR = block_diag(*KR_diag)
         Lam = 2 * KR.T @ P @ KR
@@ -59,7 +59,7 @@ def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, sample
 
         tmp = []
         for j in range(n_cams):
-            tmp.append(Projections[batch_idx][inner_idx, j, :, 3:4])
+            tmp.append(Projections[f, j, :, 3:4])
         KRT = -np.concatenate(tuple(tmp)*Nj, axis=0)
         mt = 2 * (KRT.T @ P @ KR).T
 
@@ -79,19 +79,35 @@ def bone_length_esti_batch(pts_2d, confs, human_tree, Projections, ORDER, sample
     return L_mean
 
 
-def get_bl(output_dir):
-    config = get_config("config.yaml")
-    pkl_file = open(config.output_file_path, 'rb')
-    data = pickle.load(pkl_file)
+def get_bl(cfg_file, output_dir):
+    config = get_config(cfg_file)
+    with open(config.file_paths.detected_data, 'rb') as f:
+        data = edict(pickle.load(f))
+
+    ORDER = np.arange(config.data.n_joints)
+    for i, j in config.data.flip_pairs:
+        ORDER[[i, j]] = ORDER[[j, i]]
     for sub_idx in [5, 6]:
-        keypoints_2d = data["keypoints_2d"] # list of batch_size x n_cam x n_joints x 2, length is n_frame
-        Ps = data["Projections"] # list of batch_size x n_cam x 3 x 4, len = n_frame
-        confidences = data["confidences"] # list of batch_size x n_cam x n_joints, len = n_frame
+        mask = data.subject_idx == sub_idx
+        keypoints_2d = data.keypoints_2d[mask, ...]  # n_frames x n_cam x n_joints x 2
+        projs = data.proj_mats[mask, ...]  # n_frames x n_cam x 3 x 4
+        confidences = data.confidences[mask, ...]  # n_frames x n_cam x n_joints
         human_tree = create_human_tree("human36m")
 
-        action_idx = data['action_idx'].flatten()
+        action_idx = data.action_idx[mask]
 
         # T poses are the first frames of each action
-        Tposes = [i for i in range(0, len(action_idx)) if (i == 0 or action_idx[i] != action_idx[i-1]) and (action_idx[i] % 2 == 1) and (data["subject_idx"][i] == sub_idx)]
-        bl_mean = bone_length_esti_batch(keypoints_2d, confidences, human_tree, Ps, config["order"], Tposes)
-        np.save(os.path.join(output_dir, f"S{9 if sub_idx == 5 else 11}_bl_mean_w_conf.npy"), bl_mean)
+        Tposes = [i for i in range(0, len(action_idx)) if (i == 0 or action_idx[i] != action_idx[i-1]) and (action_idx[i] % 2 == 0)]
+        bl_mean = bone_length_estimate(keypoints_2d, confidences, human_tree, projs, ORDER, Tposes)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        np.save(os.path.join(output_dir, f"S{9 if sub_idx == 5 else 11}_bl_estimated.npy"), bl_mean)
+
+        # Get ground truth bone lengths from data.
+        a = human_tree.get_bl_mat(data.keypoints_3d_gt[mask, ...][:, ORDER, :])
+        bl_gt = np.mean(human_tree.get_bl_mat(data.keypoints_3d_gt[mask, ...][:, ORDER, :]), axis=0)
+        np.save(os.path.join(output_dir, f"S{9 if sub_idx == 5 else 11}_bl_gt.npy"), bl_gt)
+
+
+if __name__ == "__main__":
+    get_bl("config.yaml", os.path.join("data", "bone_lengths", "h36m"))

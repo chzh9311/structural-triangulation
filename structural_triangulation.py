@@ -103,14 +103,15 @@ class DictTree:
             tmp = [getattr(ax, 'set_{}ticks'.format(dim))([]) for dim in 'xyz']
         return ax
 
-    def get_bl_vec(self, pose3D):
+    def get_bl_mat(self, poses3D):
         """
-        :pose3D: <numpy.ndarray> of self.size x 3, the 3D joint coordinates.
-        :return: <numpy.ndarray> of (self.size-1) x 1, the 3D bone length vector
+        :pose3D: <numpy.ndarray> of n_frames x n_joints x 3, the 3D joint coordinates.
+        :return: <numpy.ndarray> of n_frames x n_bones, the 3D bone length vector
         """
-        return np.linalg.norm((self.conv_J2B @ pose3D.reshape(-1, 1))[3:]\
-            .reshape(self.size-1, 3), axis=1).reshape(self.size-1, 1)
-            
+        n_frames = poses3D.shape[0]
+        return np.linalg.norm((poses3D.reshape(n_frames, -1) @ self.conv_J2B.T)[:, 3:]\
+                              .reshape(n_frames, -1, 3), axis=2).reshape(n_frames, -1)
+
 
 def create_human_tree(data_type="human36m"):
     """
@@ -224,10 +225,12 @@ def Pose3D_inference(n_cams, human_tree, poses_2d, confidences, lengths, Project
     for i in range(Nj-1):
         D31[3*i:3*i+3, i:i+1] = np.ones((3, 1))
 
-    if method == "lag":
+    if method == "Lagrange":
         b = Lagrangian_method(A, beta, b0, n_step, Nj, lengths, D31)
-    elif method == "st":
+    elif method == "ST":
         b = ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step)
+    elif method == "LS":
+        b = b0
     else:
         error("Method %s not completed yet." % (method))
         exit(-1)

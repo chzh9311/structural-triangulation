@@ -151,22 +151,20 @@ def repr_err(pts_2d, P1, P2, pts_3d):
     return np.mean(np.mean(norm(repr - pts_2d, axis=2)))
 
 
-def batch_data_iterator(ORDER, n_frames, batch_size, kps, Ps, confs):
+def data_iterator(ORDER, n_frames, kps, Ps, confs):
     """
     Iterate over batches of data.
     ORDER: the list of indices where 0 represents the root joint.
     n_frames: <int> frame number
     batch_size: <int> 
-    kps: list of <numpy.ndarray> of batch_size x n_cams x n_joints x n_dims: key points
-    Ps:  list of <numpy.ndarray> of batch_size x n_cams x 3 x 4.
-    confs: list of <numpy.ndarray> of n_cameras x n_joints.
+    kps:  <numpy.ndarray> of n_frames x n_cams x n_joints x n_dims: key points
+    Ps:   <numpy.ndarray> of n_frames x n_cams x 3 x 4.
+    confs:  <numpy.ndarray> of n_frames x n_cameras x n_joints.
     """
     for i in range(n_frames):
-        batch_idx = int(i / batch_size)
-        inner_idx = i - batch_size * batch_idx
-        n_cams = kps[batch_idx].shape[1]
-        yield i, n_cams, kps[batch_idx][inner_idx, ...][:, ORDER, :],\
-            Ps[batch_idx][inner_idx, :, :, :], confs[batch_idx][inner_idx, ...][:, ORDER]
+        n_cams = kps.shape[1]
+        yield i, n_cams, kps[i, ...][:, ORDER, :],\
+            Ps[i, :, :, :], confs[i, ...][:, ORDER]
 
 
 def draw_vec_pose(ax, mid_points, vec3D, color):
