@@ -6,3 +6,5 @@ __pycache__/**
 venv/
 
 data/**
+
+vir_result/**
