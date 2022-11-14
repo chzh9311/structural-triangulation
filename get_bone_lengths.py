@@ -110,4 +110,4 @@ def get_bl(cfg_file, output_dir):
 
 
 if __name__ == "__main__":
-    get_bl("config.yaml", os.path.join("data", "bone_lengths", "h36m"))
+    get_bl(os.path.join("configs", "h36m_config.yaml"), os.path.join("data", "bone_lengths", "h36m"))

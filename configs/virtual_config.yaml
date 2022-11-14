@@ -23,30 +23,22 @@ data:
       - 0
       - 6
 
-  # Action names
-  actions:
-    - Directions
-    - Discussion
-    - Eating
-    - Greeting
-    - Phoning
-    - Posing
-    - Purchases
-    - Sitting
-    - SittingDown
-    - Smoking
-    - TakingPhoto
-    - Waiting
-    - Walking
-    - WalkingDog
-    - WalkingTogether
-
 test:
-  # The step number of Step constraint method
   method: ST
-  SCA_step: 3
-  with_damaged_actions: False
-  damaged_actions:
-   - Greeting_2
-   - SittingDown_2
-   - Waiting_1
+  # The step number of Step constraint method
+  n_steps: 3
+  # blank for totally random
+  seed:
+  n_cams:
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+  n_sigmas:
+    - 2
+    - 4
+    - 6
+    - 8
+
+  output_dir: vir_result

@@ -13,12 +13,14 @@ def linear_eigen_method_pose(n_cams, Xs, Ps, confidences=None):
         joint on each view.
     return:       <numpy.ndarray> of n_joint x 3. The 3D joint position estimations.
     """
-    Nj = Xs.shape[1]
-    linear_X = np.zeros((Nj, 3))
-    for i in range(Nj):
-        linear_X[i, :] = linear_eigen_method(n_cams, Xs[:, i, :],
-            Ps, confidences[:, i]).reshape(3,)
-    return linear_X
+    n_joints = Xs.shape[1]
+    linear_X = []
+    if confidences is None:
+        confidences = np.ones((n_cams, n_joints)) / n_cams
+    for i in range(n_joints):
+        linear_X.append(linear_eigen_method(n_cams, Xs[:, i, :],
+            Ps, confidences[:, i]).reshape(3,))
+    return np.stack(linear_X, axis=0)
 
 
 def linear_eigen_method(n_cams, Xs, Ps, confidences=None):
@@ -165,6 +167,14 @@ def data_iterator(ORDER, n_frames, kps, Ps, confs):
         n_cams = kps.shape[1]
         yield i, n_cams, kps[i, ...][:, ORDER, :],\
             Ps[i, :, :, :], confs[i, ...][:, ORDER]
+
+
+def MPJPE(pose, gt):
+    """
+    pose, gt: <numpy.ndarray> of n_frames x n_joints x n_dim, referring to the
+    estimated 3D pose and ground truth.
+    """
+    return np.mean(np.mean(np.linalg.norm(pose - gt, axis=2), axis=1))
 
 
 def draw_vec_pose(ax, mid_points, vec3D, color):

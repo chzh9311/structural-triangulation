@@ -1,68 +1,85 @@
+import os
+import pickle
 import numpy as np
 import pandas as pd
 from math import pi, sin, cos
 from tqdm import tqdm
-from structural_triangulation import create_human_tree, Pose3D_inference
-from utils import linear_eigen_method
-from config import config
+from easydict import EasyDict as edict
 
-ORDER = config["order"]
+from structural_triangulation import create_human_tree, Pose3D_inference
+from utils import linear_eigen_method_pose, MPJPE
+from config import get_config
+
+
 def main():
-    test_subjects = [9, 11]
-    n_cams_list = np.arange(2, 11)
-    sigma_list = np.arange(2, 22, 2)
-    tri_result = pd.DataFrame(index=sigma_list, columns=n_cams_list)
-    opt_result = pd.DataFrame(index=sigma_list, columns=n_cams_list)
-    outperform_rate = pd.DataFrame(index=sigma_list, columns=n_cams_list)
-    tri_X = np.zeros((1253 + 928, 17, 3))
-    optim_X = np.zeros((1253 + 928, 17, 3))
-    lengths = {}
-    labels_path=config["label path"]
-    labels = np.load(labels_path, allow_pickle=True).item()
+    config = get_config(os.path.join("configs", "virtual_config.yaml"))
+
+    ORDER = np.arange(config.data.n_joints)
+    for i, j in config.data.flip_pairs:
+        ORDER[[i, j]] = ORDER[[j, i]]
+
+    # parameters
+    n_cams_array = np.array(config.test.n_cams)
+    sigmas_array = np.array(config.test.n_sigmas)
+
+    # take notes of the results
+    tri_result = pd.DataFrame(index=sigmas_array, columns=n_cams_array)
+    opt_result = pd.DataFrame(index=sigmas_array, columns=n_cams_array)
+    outperform_rate = pd.DataFrame(index=sigmas_array, columns=n_cams_array)
+
+    with open(config.file_paths.detected_data, "rb") as f:
+        labels = edict(pickle.load(f))
     human_tree = create_human_tree()
-    poses3D = []
-    np.random.seed(0)
-    for k in range(len(test_subjects)):
-        poses3D.append(labels['table']['keypoints'][labels['table']['subject_idx'] == labels['subject_names'].index(f"S{test_subjects[k]}")])
-        poses3D[k] = poses3D[k][:, ORDER, :]
-        lengths[test_subjects[k]] = np.zeros((16, 1))
-        for i in range(1, 17):
-            lengths[test_subjects[k]][i - 1] = np.mean(np.linalg.norm(poses3D[k][:, i, :] - poses3D[k][:, human_tree.node_list[i]["parent"], :], axis=1), axis=0)
-    poses3D = np.concatenate(tuple(poses3D), axis=0)
+
+    if config.test.seed is not None:
+        np.random.seed(config.test.seed)
+    poses3D = labels.keypoints_3d_gt
+    lengths = {
+        5: np.load(config.file_paths.bl_S9).reshape(-1, 1),
+        6: np.load(config.file_paths.bl_S11).reshape(-1, 1)
+    }
+    for i, j in config.data.flip_pairs:
+        poses3D[:, [j, i], :] = poses3D[:, [i, j], :]
+
     for cam_type in ["round", "half"]:
-        for n_cams in tqdm(n_cams_list):
+        for n_cams in tqdm(n_cams_array):
             P_list = generate_cam_systems(n_cams, pi if cam_type == "half" else 2*pi)
-            Nf, Nj, _ = poses3D.shape
-            poses2D = np.zeros((Nf, n_cams, Nj, 2))
-            for i in range(Nf):
+            n_frames, n_joints, _ = poses3D.shape
+            poses2D = np.zeros((n_frames, n_cams, n_joints, 2))
+            for i in range(n_frames):
                 X3d = poses3D[i, ...]
                 for c in range(n_cams):
-                    X2d = P_list[c] @ np.concatenate((X3d, np.ones((Nj, 1))), axis=1).T
+                    X2d = P_list[c] @ np.concatenate((X3d, np.ones((n_joints, 1))), axis=1).T
                     X2d = (X2d[0:2, :] / X2d[2, :]).T
                     poses2D[i, c, :, :] = X2d
-            for sigma in sigma_list:
+            for sigma in sigmas_array:
+                tri_X = []
+                optim_X = []
                 estim2D = poses2D + sigma*np.random.randn(*poses2D.shape)
-                for i in range(Nf):
-                    for j in range(17):
-                        tri_X[i, j, :] = linear_eigen_method(n_cams, estim2D[i, :, j, :], np.stack(tuple(P_list), axis=0), np.ones((n_cams,))/2).reshape(3,)
-                    optim_X[i, ...] = Pose3D_inference(n_cams, human_tree, estim2D[i, ...], np.ones((n_cams, Nj))/n_cams, lengths[9 if i < 1253 else 11], np.stack(tuple(P_list), axis=0), "st", 1 if (n_cams==2 and cam_type=="round") else 3)
-                print(MPJPE(tri_X, poses3D))
-                print(MPJPE(optim_X, poses3D))
+                for i in range(n_frames):
+                    tri_X.append(linear_eigen_method_pose(n_cams, estim2D[i, ...], np.stack(tuple(P_list), axis=0)))
+                    if config.test.method == "ST":
+                        n_steps = 1 if (n_cams == 2 and cam_type == "round") else config.test.n_steps
+                    else:
+                        n_steps = config.test.n_steps
+                    optim_X.append(Pose3D_inference(n_cams, human_tree, estim2D[i, ...], None,
+                                                    lengths[labels.subject_idx[i]], np.stack(tuple(P_list), axis=0),
+                                                    config.test.method, n_steps))
+                tri_X = np.stack(tri_X, axis=0)
+                optim_X = np.stack(optim_X, axis=0)
+                # print(MPJPE(tri_X, poses3D))
+                # print(MPJPE(optim_X, poses3D))
                 
                 tri_result[n_cams][sigma] = MPJPE(tri_X, poses3D)
                 opt_result[n_cams][sigma] = MPJPE(optim_X, poses3D)
                 outperform_rate[n_cams][sigma] = OUT_rate(tri_X, optim_X, poses3D)
 
-        tri_result.to_csv(f"vir_result/{cam_type}_triangulation.csv", ",")
-        opt_result.to_csv(f"vir_result/{cam_type}_optimization.csv", ",")
-        outperform_rate.to_csv(f"vir_result/{cam_type}_outperform_rate.csv", ",")
+        if not os.path.exists(config.test.output_dir):
+            os.makedirs(config.test.output_dir)
+        tri_result.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_LEM.csv"), ",")
+        opt_result.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_{config.test.method}.csv"), ",")
+        outperform_rate.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_outperform_rate.csv"), ",")
 
-def MPJPE(pose, gt):
-    """
-    pose, gt: <numpy.ndarray> of n_frames x n_joints x n_dim, referring to the
-    estimated 3D pose and ground truth.
-    """
-    return np.mean(np.mean(np.linalg.norm(pose - gt, axis=2), axis=1))
 
 def OUT_rate(pose1, pose2, gt):
     """

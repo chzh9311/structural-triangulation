@@ -1,9 +1,8 @@
 import yaml
 from easydict import EasyDict as edict
-"""
-The configuration file. You can config the file paths.
-"""
-def get_config(config_path="config.yaml"):
+
+
+def get_config(config_path="configs/h36m_config.yaml"):
     """
     Get the configurations.
     read the yaml file identified by config_path

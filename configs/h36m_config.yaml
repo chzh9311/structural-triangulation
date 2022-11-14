@@ -1,0 +1,55 @@
+file_paths:
+  # 2D detection data file, pre-processing and 2D backbone model source: https://github.com/karfly/learnable-triangulation-pytorch
+  # including the following contents:
+  # keypoints_2d: numpy.ndarray of size n_frames x n_cameras x n_joints x 2. The 2D keypoint estimations.
+  # keypoints_3d_gt: numpy.ndarray of size n_frames x n_joints x 3. The 3D ground truth.
+  # confidences: numpy.ndarray of n_frames x n_cam x 17, The 2D confidences of each joint.
+  # Projections: numpy.ndarray of size n_frames x n_cameras x 3 x 4. The camera projection matrices.
+  # action_idx: a vector of dimension n_frames, indicating the action indices.
+  # subject_idx: a vector of dimension n_frames, indicating the subject indices.
+  detected_data: data/detected_data.pkl
+
+  # The bone lengths of test subjects.
+  bl_S9: data/bone_lengths/h36m/S9_bl_gt.npy
+  bl_S11: data/bone_lengths/h36m/S11_bl_gt.npy
+
+data:
+  # The joint number
+  n_joints: 17
+
+  # joints to flip indices
+  flip_pairs:
+    -
+      - 0
+      - 6
+
+  # Action names
+  actions:
+    - Directions
+    - Discussion
+    - Eating
+    - Greeting
+    - Phoning
+    - Posing
+    - Purchases
+    - Sitting
+    - SittingDown
+    - Smoking
+    - TakingPhoto
+    - Waiting
+    - Walking
+    - WalkingDog
+    - WalkingTogether
+
+test:
+  # ST: Structural Triangulation; Lagrangian: Lagrangian Method; LS: Least Square Triangulation Method.
+  method: ST
+  # The step number of Step constraint method / The max iteration of Lagrangian method
+  n_steps: 3
+
+  # Damaged means ground truth labels are shifted by a certain distance.
+  with_damaged_actions: True
+  damaged_actions:
+   - Greeting_2
+   - SittingDown_2
+   - Waiting_1

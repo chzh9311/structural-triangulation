@@ -193,6 +193,9 @@ def Pose3D_inference(n_cams, human_tree, poses_2d, confidences, lengths, Project
     KR_diag = [np.concatenate(tmp, axis=0)]*Nj
     KR = block_diag(*KR_diag)
     P = np.zeros((Nj * n_cams * 3, Nj * n_cams * 3))
+
+    if confidences is None:
+        confidences = np.ones((n_cams, Nj)) / n_cams
     for i in range(Nj):
         for j in range(n_cams):
             conf = confidences[j, i]
@@ -225,14 +228,14 @@ def Pose3D_inference(n_cams, human_tree, poses_2d, confidences, lengths, Project
     for i in range(Nj-1):
         D31[3*i:3*i+3, i:i+1] = np.ones((3, 1))
 
-    if method == "Lagrange":
+    if method == "Lagrangian":
         b = Lagrangian_method(A, beta, b0, n_step, Nj, lengths, D31)
     elif method == "ST":
         b = ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step)
     elif method == "LS":
         b = b0
     else:
-        error("Method %s not completed yet." % (method))
+        print(f"Method {method} not completed yet.")
         exit(-1)
 
     x0 = -TrM_inv @ (Mrow @ G[3:, 3:] @ b - Irow @ m)
@@ -260,7 +263,6 @@ def Lagrangian_method(A, e, b0, n_iter, Nj, lengths, D31):
         lam = lamn
 
     return b
-
 
 
 def ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step):
