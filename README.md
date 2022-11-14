@@ -115,6 +115,10 @@ Implement the functions to
 
 ## Citation
 
+Virtual test needs only the 3D ground truth as 2D estimations are generated. Use ground truth data prepared following this [guide](https://github.com/karfly/learnable-triangulation-pytorch/blob/master/mvn/datasets/human36m_preprocessing/README.md) and run `virtual_test.py` then the result will be output to `vir_result` folder.
+
+## Citation
+
 If you use our code, please cite with:
 
 ```latex
