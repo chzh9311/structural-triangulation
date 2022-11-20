@@ -107,7 +107,7 @@ You will see results in `csv` format under `vir_result` folder. To specify camer
 
 Implement the functions to
 
-* dump experimental results to local storage instead of just printing on screen;
+* dump experimental results to local storage instead of just printing on screen (half-finished);
 
 * specify parameters in command arguments;
 

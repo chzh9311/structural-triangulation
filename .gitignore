@@ -8,3 +8,5 @@ venv/
 data/**
 
 vir_result/**
+
+log/**

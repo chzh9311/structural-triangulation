@@ -42,7 +42,10 @@ data:
     - WalkingTogether
 
 test:
-  # ST: Structural Triangulation; Lagrangian: Lagrangian Method; LS: Least Square Triangulation Method.
+  # Baseline: Linear Eigen Triangulation method.
+  # ST: Structural Triangulation;
+  # Lagrangian: Lagrangian Method;
+  # LS: Least Square Triangulation Method.
   method: ST
   # The step number of Step constraint method / The max iteration of Lagrangian method
   n_steps: 3
@@ -53,3 +56,5 @@ test:
    - Greeting_2
    - SittingDown_2
    - Waiting_1
+
+  out_dir: log
