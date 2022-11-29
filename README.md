@@ -91,7 +91,7 @@ With data ready, running test is very simple:
 python test.py
 ```
 
-The result will be printed on screen once the test is finished. You can modify configurations in `configs/h36m_config.yaml`.
+The result will be dumped to corresponding directory under `log` once the test is finished. You can modify configurations in `configs/h36m_config.yaml`.
 
 ## Test on Synthesized Dataset
 
