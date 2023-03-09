@@ -1,6 +1,21 @@
 import os
 import numpy as np
+import torch
+
 from numpy.linalg import norm
+from easydict import EasyDict
+
+def dict_cvt(ed):
+    """
+    From easydict to dict
+    """
+    d = {}
+    for k in ed.keys():
+        if type(ed[k]) == EasyDict:
+            d[k] = dict_cvt(ed[k])
+        else:
+            d[k] = ed[k]
+    return d
 
 
 def linear_eigen_method_pose(n_cams, Xs, Ps, confidences=None):
@@ -153,7 +168,7 @@ def repr_err(pts_2d, P1, P2, pts_3d):
     return np.mean(np.mean(norm(repr - pts_2d, axis=2)))
 
 
-def data_iterator(ORDER, n_frames, kps, Ps, confs):
+def data_iterator(ORDER, n_frames, kps, Ps, confs, subject_idx, bl_dict, batch, batch_size=1, device='cpu'):
     """
     Iterate over batches of data.
     ORDER: the list of indices where 0 represents the root joint.
@@ -163,10 +178,20 @@ def data_iterator(ORDER, n_frames, kps, Ps, confs):
     Ps:   <numpy.ndarray> of n_frames x n_cams x 3 x 4.
     confs:  <numpy.ndarray> of n_frames x n_cameras x n_joints.
     """
-    for i in range(n_frames):
-        n_cams = kps.shape[1]
-        yield i, n_cams, kps[i, ...][:, ORDER, :],\
-            Ps[i, :, :, :], confs[i, ...][:, ORDER]
+    if batch:
+        for i in range(int(np.ceil(n_frames/batch_size))):
+            n_cams = kps.shape[1]
+            indices = list(range(i*batch_size, min((i+1)*batch_size, n_frames)))
+            kps_ = torch.as_tensor(kps[indices][:, :, ORDER, :], device=device)
+            projs_ = torch.as_tensor(Ps[indices, ...], device=device)
+            confs_ = torch.as_tensor(confs[indices, ...][:, :, ORDER], device=device)
+            bls = torch.stack([torch.as_tensor(bl_dict[subject_idx[i]], device=device).float() for i in indices], dim=0)
+
+            yield indices, n_cams, kps_, projs_, confs_, bls
+    else:
+        for i in range(n_frames):
+            n_cams = kps.shape[1]
+            yield i, n_cams, kps[i, ...][:, ORDER, :], Ps[i, :, :, :], confs[i, ...][:, ORDER], bl_dict[subject_idx[i]]
 
 
 def MPJPE(pose, gt):

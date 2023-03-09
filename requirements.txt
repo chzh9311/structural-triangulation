@@ -1,6 +1,7 @@
 numpy
 pandas
 scipy
-tqdm
+progress
 pyyaml
 easydict
+torch

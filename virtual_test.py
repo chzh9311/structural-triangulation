@@ -1,18 +1,31 @@
 import os
+import sys
 import pickle
 import numpy as np
 import pandas as pd
+
+import time
+import argparse
+import yaml
+
 from math import pi, sin, cos
-from tqdm import tqdm
+from progress.bar import Bar
 from easydict import EasyDict as edict
 
 from structural_triangulation import create_human_tree, Pose3D_inference
-from utils import linear_eigen_method_pose, MPJPE
+from utils import linear_eigen_method_pose, MPJPE, dict_cvt
 from config import get_config
 
 
 def main():
-    config = get_config(os.path.join("configs", "virtual_config.yaml"))
+    parser = argparse.ArgumentParser(prog="Virtual Testing",
+                                     description="Using 2D keypoints generated from projecting 3D GT + Gaussian noise.")
+    parser.add_argument("--cfg", default=os.path.join("configs", "virtual_config.yaml"),
+                        help="path to the configuration file")
+    args = parser.parse_args()
+    config = get_config(args.cfg)
+    exp_name = f"virtual_{config.test.method}_{time.strftime('%Y%m%d_%H%M%S')}"
+    log_path = os.path.join(config.test.output_dir, exp_name)
 
     ORDER = np.arange(config.data.n_joints)
     for i, j in config.data.flip_pairs:
@@ -41,10 +54,12 @@ def main():
     for i, j in config.data.flip_pairs:
         poses3D[:, [j, i], :] = poses3D[:, [i, j], :]
 
+    n_frames, n_joints, _ = poses3D.shape
     for cam_type in ["round", "half"]:
-        for n_cams in tqdm(n_cams_array):
+        bar = Bar(f"Processing data in {cam_type} camera setting ...",
+                  max=n_cams_array.shape[0] * sigmas_array.shape[0] * n_frames)
+        for n_cams in n_cams_array:
             P_list = generate_cam_systems(n_cams, pi if cam_type == "half" else 2*pi)
-            n_frames, n_joints, _ = poses3D.shape
             poses2D = np.zeros((n_frames, n_cams, n_joints, 2))
             for i in range(n_frames):
                 X3d = poses3D[i, ...]
@@ -65,20 +80,22 @@ def main():
                     optim_X.append(Pose3D_inference(n_cams, human_tree, estim2D[i, ...], None,
                                                     lengths[labels.subject_idx[i]], np.stack(tuple(P_list), axis=0),
                                                     config.test.method, n_steps))
+                    bar.next()
                 tri_X = np.stack(tri_X, axis=0)
                 optim_X = np.stack(optim_X, axis=0)
-                # print(MPJPE(tri_X, poses3D))
-                # print(MPJPE(optim_X, poses3D))
                 
                 tri_result[n_cams][sigma] = MPJPE(tri_X, poses3D)
                 opt_result[n_cams][sigma] = MPJPE(optim_X, poses3D)
                 outperform_rate[n_cams][sigma] = OUT_rate(tri_X, optim_X, poses3D)
+        bar.finish()
 
-        if not os.path.exists(config.test.output_dir):
-            os.makedirs(config.test.output_dir)
-        tri_result.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_LEM.csv"), ",")
-        opt_result.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_{config.test.method}.csv"), ",")
-        outperform_rate.to_csv(os.path.join(config.test.output_dir, f"{cam_type}_outperform_rate.csv"), ",")
+        if not os.path.exists(log_path):
+            os.makedirs(log_path)
+        tri_result.to_csv(os.path.join(log_path, f"{cam_type}_LEM.csv"), ",")
+        opt_result.to_csv(os.path.join(log_path, f"{cam_type}_{config.test.method}.csv"), ",")
+        outperform_rate.to_csv(os.path.join(log_path, f"{cam_type}_outperform_rate.csv"), ",")
+    with open(os.path.join(log_path, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(dict_cvt(config), f)
 
 
 def OUT_rate(pose1, pose2, gt):

@@ -33,9 +33,7 @@ Functions of the source code are:
 
 ## Requirements
 
-The solution is of closed form, so only some basic scientific calculation packages (`numpy`, `scipy`), and as visualization packages (`matplotlib`, `tqdm`) are needed. Note that Python 3.8+ is needed to make formatted strings work.
-
-To install all requirements, simply
+The solution is of closed form, so only some basic scientific calculation packages (`numpy`, `scipy`), and visualization packages (`matplotlib`, `tqdm`) are needed for the basic implementation. Note that Python 3.6+ is needed to make formatted strings work. But now the cuda version is implemented, so PyTorch is needed if you want it to work out-of-the-box. Besides the following command, you will need to follow the [official guide](https://pytorch.org/get-started/locally/) if you want GPU support.
 
 ```shell
 pip install -r requirements.txt
@@ -44,6 +42,8 @@ pip install -r requirements.txt
 ## How to Use
 
 `Pose3D_inference(...)` in `structural_triangulation.py` is the key function which implements the main method in our work. This function takes one frame of 2D poses, along with camera matrices, bone lengths, etc., as input, and produces the optimal 3D pose of the current frame. Besides the closed-form Structural Triangulation combining with Step Constraint Method, implementation of Lagrangian Algorithm is also provided as a baseline. The methods are selected by a string parameter in `Pose3D_inference(...)`.
+
+* *Note*: `structural_triangulation_torch` is the parallelized implementation using PyTorch, and only support Structural Triangulation.
 
 Actually, Structural Triangulation is as simple as just a triangulation method, these test files are more likely to be sample code than official ones, since it requires 2D estimations to be ready. You may test this method however you like, as long as proper variables are passed in the functions.
 
@@ -88,7 +88,13 @@ Here, `*_estimated.npy` files contain results estimated from linear triangulatio
 With data ready, running test is very simple:
 
 ```shell
-python test.py
+python test.py --cfg configs/h36m_config.yaml
+```
+
+If you want to test the cuda implementation with particular batch size, like 4, just use:
+
+```shell
+python test.py --cfg configs/h36m_config.yaml --cuda --batch-size 4
 ```
 
 The result will be dumped to corresponding directory under `log` once the test is finished. You can modify configurations in `configs/h36m_config.yaml`.
@@ -98,7 +104,7 @@ The result will be dumped to corresponding directory under `log` once the test i
 Virtual test needs only the 3D ground truth as 2D estimations are generated. Just prepare data according to the previous section. Then run
 
 ```shell
-python virtual_test.py
+python virtual_test.py --cfg configs/virtual_config.yaml
 ```
 
 You will see results in `csv` format under `vir_result` folder. To specify camera numbers and 2D estimation errors, modify `configs/virtual_config.yaml`.
@@ -107,11 +113,11 @@ You will see results in `csv` format under `vir_result` folder. To specify camer
 
 Implement the functions to
 
-* dump experimental results to local storage instead of just printing on screen (half-finished);
+- [x] dump experimental results to local storage.
 
-* specify parameters in command arguments;
+- [x] specify parameters in command arguments;
 
-* process data in batches using GPU.
+- [x] process data in batches using GPU.
 
 ## Citation
 

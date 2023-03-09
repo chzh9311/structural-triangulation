@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.linalg import block_diag as block_diag
+import torch
 
 
 class DictTree:
@@ -283,3 +284,91 @@ def ST_SCA(A_inv, beta, Nj, b0, lengths, D31, n_step):
         Inv = (np.eye(3*Nj-3) - Inv @ D_lambda) @ Inv
         b = Inv @ beta
     return b
+
+
+def structural_triangulation_torch(n_cams, human_tree, poses_2d, confidences, lengths, projections, n_step):
+    """
+    The main procedure of structural triangulation & step contraint algorithm
+    input params:
+    : n_cams :      <int> the number of cameras
+    : human_tree :  <DictTree> the tree of human structure.
+    : poses_2d :    <Tensor> batch_size x n_cams x n_joints x 2. The 2D joint estimates.
+    : confidences : <Tensor> batch_size x n_cams x n_joints. The confidences between cameras.
+    : lengths :     <Tensor> batch_size x (n_joints - 1) x 1. The ground truth lengths.
+    : Projections : <Tensor> batch_size x n_cams x 3 x 4. Projection matrices.
+    """
+    # Number of joints 
+    bs, _, Nj, _ = poses_2d.shape
+    device = poses_2d.device
+
+    # Transformation matrix from bone to joint
+    G = torch.as_tensor(human_tree.conv_B2J, device=device).unsqueeze(0).float()
+
+    KRs = projections[..., 0:3].unsqueeze(2) # bs x n_cams x 3 x 3
+
+    fill = torch.zeros(poses_2d.shape[:3] + (2, 2), device=device)
+    fill[:, :, :, [0, 1], [0, 1]] = 1
+    M_inner = torch.concat((fill, -poses_2d.view(bs, n_cams, Nj, 2, 1)), dim=-1)
+    M_half = M_inner @ projections[:, :, :, :3].unsqueeze(2)
+    Ms = 2 * M_half.transpose(-1, -2) @ M_half
+    m = -2 * M_half.transpose(-1, -2) @ M_inner @ projections[:, :, :, 3:4].unsqueeze(2)
+
+    if confidences is None:
+        ws = torch.ones((bs, n_cams, Nj, 1, 1)) / n_cams
+    else:
+        ws = confidences.view(bs, n_cams, Nj, 1, 1)
+    Ms = ws * Ms
+    m = ws * m
+    Ms = torch.sum(Ms, dim=1)
+    D = block_diag_batch(Ms)
+    m = torch.sum(m, dim=1).view(bs, -1, 1)
+
+    # Irow = np.concatenate((np.eye(3),)*Nj, axis=1)
+    # Mrow = Irow @ D
+    TrLam = torch.sum(Ms, dim=1)
+    Mrow = Ms.view(bs, -1, 3)[:, 3:, :].transpose(-1, -2)
+    TrM_inv = torch.linalg.inv(TrLam)
+
+    Q = torch.concat((-TrM_inv @ Mrow @ G[:, 3:, 3:],
+                      torch.eye(Nj*3-3, device=device).unsqueeze(0) * torch.ones(bs, 1, 1, device=device)), dim=1)
+    p = torch.zeros(bs, Nj*3, 1, device=device)
+    p[:, :3, :] = -TrM_inv @ torch.sum(m.view(bs, -1, 3, 1), dim=1)
+
+    A = Q.transpose(-1, -2) @ G.transpose(-1, -2) @ D @ G @ Q
+    beta = (p.transpose(-1, -2) @ G.transpose(-1, -2) @ D @ G @ Q + m.transpose(-1, -2) @ G @ Q).transpose(-1, -2)
+
+    A_inv = torch.linalg.inv(A)
+    b0 = A_inv @ beta
+    D31 = torch.zeros((3*Nj-3, Nj-1))
+    for i in range(Nj-1):
+        D31[3*i:3*i+3, i:i+1] = torch.ones((3, 1))
+
+    # SCA in batch
+    Inv = A_inv
+    b = b0
+    for i in range(n_step):
+        start_len = torch.norm(b.view(bs, -1, 3, 1), dim=2)
+        target_len = (start_len * (n_step - i - 1) + lengths) / (n_step - i)
+        Db = block_diag_batch(b.view(bs, -1, 3, 1))
+        tmp_inv = torch.linalg.inv(Db.transpose(-1, -2) @ Inv @ Db) # + 0 * torch.eye(Nj-1))
+        lam = tmp_inv @ (torch.square(start_len) - torch.square(target_len)) / 4
+        D_lambda = torch.concat((2 * lam, )*3, dim=2).reshape(bs, 1, -1)
+
+        Inv = (torch.eye(3*Nj-3, device=device).unsqueeze(0) - Inv * D_lambda) @ Inv
+        b = Inv @ beta
+
+    x0 = -TrM_inv @ (Mrow @ G[:, 3:, 3:] @ b - torch.sum(m.view(bs, -1, 3, 1), dim=1))
+    X = G @ torch.concatenate((x0, b), axis=1)
+    return X.reshape(bs, 17, 3)
+
+
+def block_diag_batch(Ms):
+    """
+    do block diag calculation for the last two dims
+    """
+    num, h, w = Ms.shape[-3:]
+    result = torch.zeros(Ms.shape[:-3] + (num*h, num*w), device=Ms.device)
+    for i in range(num):
+        result[..., i*h:(i+1)*h, i*w:(i+1)*w] = Ms[..., i, :, :]
+    
+    return result

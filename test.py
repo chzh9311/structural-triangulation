@@ -1,19 +1,31 @@
 import os
+import argparse
+import torch
 import time
 import pickle
 import yaml
 
 import numpy as np
-from tqdm import tqdm
+from progress.bar import Bar
 from config import get_config
 from easydict import EasyDict as edict
 
-from utils import linear_eigen_method_pose, data_iterator
-from structural_triangulation import Pose3D_inference, create_human_tree
+from utils import linear_eigen_method_pose, data_iterator, dict_cvt
+from structural_triangulation import Pose3D_inference, structural_triangulation_torch, create_human_tree
 
 
 def test():
-    config = get_config(os.path.join("configs", "h36m_config.yaml"))
+    parser = argparse.ArgumentParser(prog="Testing",
+                                     description="Using detected 2D key points from H36M dataset.")
+    parser.add_argument("--cfg", default=os.path.join("configs", "h36m_config.yaml"),
+                        help="path to the configuration file")
+    parser.add_argument("--cuda", action="store_true",
+                        help="Use cuda or not. Only structural triangulation method is implemented in parallelism.")
+    parser.add_argument("--batch-size", type=int, default=1,
+                        help="batch size. Only valid when cuda is true.")
+    args = parser.parse_args()
+    config = get_config(args.cfg)
+
     exp_name = f"h36m_{config.test.method}_{time.strftime('%Y%m%d_%H%M%S')}"
     print(f"Starting experiment {exp_name}...")
 
@@ -23,6 +35,7 @@ def test():
 
     bl_S9 = np.load(config.file_paths.bl_S9).reshape(config.data.n_joints - 1, 1)
     bl_S11 = np.load(config.file_paths.bl_S11).reshape(config.data.n_joints - 1, 1)
+    bl_dict = {5:bl_S9, 6:bl_S11}
     with open(config.file_paths.detected_data, 'rb') as pkl_file:
         detected = edict(pickle.load(pkl_file))
         if not config.test.with_damaged_actions:
@@ -42,18 +55,36 @@ def test():
     # Initialization
     Pose3D = np.zeros((n_frames, config.data.n_joints, 3))
 
-    start = time.time()
-    for idx, n_cams, kps, P, confs in tqdm(
-        data_iterator(ORDER, n_frames, detected.keypoints_2d, detected.proj_mats, detected.confidences),
-        desc="Processing frame data...",
-        total=n_frames
-    ):
-        if config.test.method == "Baseline":
-            Pose3D[idx, ...] = linear_eigen_method_pose(n_cams, kps, P, confs)
-        else:
-            Pose3D[idx, ...] = Pose3D_inference(n_cams, human_tree, kps, confs,
-                                                bl_S9 if detected.subject_idx[idx] == 5 else bl_S11, P,
-                                                config.test.method, config.test.n_steps)
+    total_time = 0
+
+    if not args.cuda:
+        bar = Bar("Processing frame data...", max=n_frames)
+        for idx, n_cams, kps, P, confs, bls in data_iterator(ORDER, n_frames, detected.keypoints_2d,
+                                                             detected.proj_mats, detected.confidences,
+                                                             detected.subject_idx, bl_dict, batch=False):
+            start = time.time()
+            if config.test.method == "LEM":
+                Pose3D[idx, ...] = linear_eigen_method_pose(n_cams, kps, P, confs)
+            else:
+                Pose3D[idx, ...] = Pose3D_inference(n_cams, human_tree, kps, confs, bls, P,
+                                                    config.test.method, config.test.n_steps)
+            total_time += time.time() - start
+            bar.next()
+        bar.finish()
+    else:
+        assert config.test.method == "ST", 'Cuda parallelization only supports structural triangulation.'
+        bar = Bar("Processing data in batches...", max=int(np.ceil(n_frames/args.batch_size)))
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        print(f"Using device {device}.")
+        for idx, n_cams, kps, P, confs, bls in data_iterator(ORDER, n_frames, detected.keypoints_2d, detected.proj_mats,
+                                                             detected.confidences, detected.subject_idx, bl_dict,
+                                                             batch=True, batch_size=args.batch_size, device=device):
+            start = time.time()
+            detected.subject_idx[idx] == 5
+            Pose3D[idx, ...] = structural_triangulation_torch(n_cams, human_tree, kps, confs, bls, P, config.test.n_steps).detach().cpu().numpy()
+            total_time += time.time() - start
+            bar.next()
+        bar.finish()
 
     Pose3D_relative = Pose3D - Pose3D[:, 0:1, :]
 
@@ -74,7 +105,7 @@ def test():
             "Average": np.mean(np.mean(np.linalg.norm(Pose3D_relative - gt_relative, axis=2), axis=0)).item()}
     }
     result["Time-relative metrics"] = {
-        "Inference time per frame (ms)": (time.time() - start) / n_frames * 1000,
+        "Inference time per frame (ms)": total_time / n_frames * 1000,
     }
     result["Bone-relative metrics"] = {
         "Mean Per Bone Length Error (MEBLE)": {
@@ -105,6 +136,8 @@ def test():
 
     if not os.path.exists(os.path.join(config.test.out_dir, exp_name)):
         os.makedirs(os.path.join(config.test.out_dir, exp_name))
+    with open(os.path.join(config.test.out_dir, exp_name, "config.yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(dict_cvt(config), f)
     with open(os.path.join(config.test.out_dir, exp_name, "result.yaml"), "w", encoding="utf-8") as f:
         yaml.dump(result, f)
         print(f"Written result to {os.path.join(config.test.out_dir, exp_name, 'result.yaml')}")
